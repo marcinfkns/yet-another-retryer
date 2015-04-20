@@ -39,7 +39,7 @@ public class Retryer<T> implements RetryContext<T> {
 	}
 
 	/** shortcut for specifying single policy */
-	public void setPolicySelector(StopStrategy<T> stopStrategy, WaitTimeStrategy<T> waitTimeStrategy, WaitStrategy<T> waitStrategy) {
+	public void setPolicy(StopStrategy<T> stopStrategy, WaitTimeStrategy<T> waitTimeStrategy, WaitStrategy<T> waitStrategy) {
 		this.policySelector = new SinglePolicySelector<>(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
 	}
 
