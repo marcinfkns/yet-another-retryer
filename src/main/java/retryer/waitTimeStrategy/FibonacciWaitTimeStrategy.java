@@ -4,19 +4,18 @@ import retryer.RetryContext;
 
 public class FibonacciWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 
-	long multiplier;
-	long maxDelayMillis;
+	final long maxDelayMillis;
 
-	long prev = 0, current = 1;
+	long prev = 0, current;
 
-	public FibonacciWaitTimeStrategy(long multiplier, long maxDelayMillis) {
-		this.multiplier = multiplier;
+	public FibonacciWaitTimeStrategy(long unitPeriodMillis, long maxDelayMillis) {
+		this.current = unitPeriodMillis;
 		this.maxDelayMillis = maxDelayMillis;
 	}
 
 	@Override
 	public long computeWaitTime(RetryContext<T> ctx) {
-		long res = current * multiplier;
+		long res = current;
 		if (res >= maxDelayMillis)
 			return maxDelayMillis;
 		long next = prev + current;

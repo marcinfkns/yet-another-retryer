@@ -4,17 +4,15 @@ import retryer.RetryContext;
 
 public class IncrementalWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 
-	long initialDelayMillis;
-	long increment;
-	long maxDelayMillis;
+	final long incrementMillis;
+	final long maxDelayMillis;
 
 	long value;
 
-	public IncrementalWaitTimeStrategy(long initialDelayMillis, long increment, long maxDelayMillis) {
-		this.initialDelayMillis = initialDelayMillis;
-		this.increment = increment;
-		this.maxDelayMillis = maxDelayMillis;
+	public IncrementalWaitTimeStrategy(long initialDelayMillis, long incrementMillis, long maxDelayMillis) {
 		this.value = initialDelayMillis;
+		this.incrementMillis = incrementMillis;
+		this.maxDelayMillis = maxDelayMillis;
 	}
 
 	@Override
@@ -22,7 +20,7 @@ public class IncrementalWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 		long res = value;
 		if (res >= maxDelayMillis)
 			return maxDelayMillis;
-		value += increment;
+		value += incrementMillis;
 		return res;
 	}
 

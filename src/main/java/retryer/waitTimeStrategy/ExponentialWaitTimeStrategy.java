@@ -4,22 +4,21 @@ import retryer.RetryContext;
 
 public class ExponentialWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 
-	long multiplier;
-	long maxDelayMillis;
+	final long maxDelayMillis;
 
-	long value = 1;
+	long value;
 
-	public ExponentialWaitTimeStrategy(long multiplier, long maxDelayMillis) {
-		this.multiplier = multiplier;
+	public ExponentialWaitTimeStrategy(long unitPeriodMillis, long maxDelayMillis) {
+		this.value = unitPeriodMillis;
 		this.maxDelayMillis = maxDelayMillis;
 	}
 
 	@Override
 	public long computeWaitTime(RetryContext<T> ctx) {
-		long res = value * multiplier;
+		long res = value;
 		if (res >= maxDelayMillis)
 			return maxDelayMillis;
-		value *= 2;
+		value += value;
 		return res;
 	}
 

@@ -4,7 +4,7 @@ import retryer.RetryContext;
 
 public class FixedWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 
-	long delayMillis;
+	final long delayMillis;
 
 	public FixedWaitTimeStrategy(long delayMillis) {
 		this.delayMillis = delayMillis;

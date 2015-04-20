@@ -6,8 +6,8 @@ import retryer.RetryContext;
 
 public class RandomWaitTimeStrategy<T> implements WaitTimeStrategy<T> {
 
-	long minDelayMillis;
-	long maxDelayMillis;
+	final long minDelayMillis;
+	final long maxDelayMillis;
 
 	final Random random = new Random();
 
