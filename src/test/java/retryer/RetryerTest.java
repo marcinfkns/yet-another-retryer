@@ -1,5 +1,8 @@
 package retryer;
 
+import static retryer.ResultPredicates.exceptionAnyOf;
+import static retryer.ResultPredicates.resultRejected;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -17,6 +20,7 @@ import org.testng.annotations.Test;
 
 import retryer.policyselector.PolicySelector;
 import retryer.policyselector.RuleSetPolicySelector;
+import retryer.policyselector.RuleSetPolicySelector.Rule;
 import retryer.stopstrategy.AttemptsCountStopStrategy;
 import retryer.stopstrategy.StopStrategy;
 import retryer.waitStrategy.BlockingWaitStrategy;
@@ -44,9 +48,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.exceptionAnyOf(RuntimeException.class))
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 		
 		Mockito.when(service.invoke())
@@ -67,9 +71,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.exceptionAnyOf(RuntimeException.class))
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 		
 		Mockito.when(service.invoke())
@@ -91,9 +95,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.resultRejected())
+			new Rule<>(policy1, resultRejected())
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 		retryer.setRejectingPredicate(ret -> !"OK".equals(ret));
 		
@@ -117,11 +121,11 @@ public class RetryerTest {
 		RetryPolicy<Object> policy2 = Mockito.spy(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
 		RetryPolicy<Object> policy3 = Mockito.spy(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-				new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.resultRejected()),
-				new RuleSetPolicySelector.Rule<>(policy2, ResultPredicates.exceptionAnyOf(ArithmeticException.class)),
-				new RuleSetPolicySelector.Rule<>(policy3, ResultPredicates.exceptionAnyOf(NullPointerException.class))
+				new Rule<>(policy1, resultRejected()),
+				new Rule<>(policy2, exceptionAnyOf(ArithmeticException.class)),
+				new Rule<>(policy3, exceptionAnyOf(NullPointerException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 		retryer.setRejectingPredicate(ret -> !"OK".equals(ret));
 
@@ -152,9 +156,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.exceptionAnyOf(RuntimeException.class))
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 
 		final List<Long> delays = new ArrayList<>();
@@ -185,9 +189,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.exceptionAnyOf(RuntimeException.class))
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 
 		final List<Long> delays = new ArrayList<>();
@@ -222,9 +226,9 @@ public class RetryerTest {
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new RuleSetPolicySelector.Rule<>(policy1, ResultPredicates.exceptionAnyOf(RuntimeException.class))
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
-		Retryer<Object> retryer = new Retryer<Object>();
+		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
 
 		final List<Long> delays = new ArrayList<>();
