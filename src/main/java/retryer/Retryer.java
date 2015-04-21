@@ -25,7 +25,9 @@ public class Retryer<T> implements RetryContext<T> {
 	long firstAttemptTime = -1L;
 	long lastAttemptTime = -1L;
 	long lastDelay = 0L;
+	long nextDelay = 0L;
 	RetryPolicy<T> lastRetryPolicy;
+	Result<T> lastResult = null;
 
 	public Retryer() {
 	}
@@ -77,27 +79,37 @@ public class Retryer<T> implements RetryContext<T> {
 			}
 			else
 				singleAttemptAsync(executor, promise);
-		}, lastDelay, TimeUnit.MILLISECONDS);
+		}, nextDelay, TimeUnit.MILLISECONDS);
 	}
 	
 	private Result<T> singleAttempt() {
-		nextAttempt();
-		Result<T> res = null;
+		
+		lastDelay = nextDelay;
+		nextDelay = 0L;
+		
+		//if the next attempt was delayed too much (for different reasons), perhaps timeout based strategies might refuse to continue:
+		if (lastRetryPolicy!=null && lastRetryPolicy.getStopStrategy().mustStop(this)) {
+			finished = true;
+			return lastResult;
+		}
+
+		prepareForNextAttempt();
+
 		try {
 			T ret = action.invoke();
 			if (rejectingPredicate!=null && rejectingPredicate.test(ret))
-				res = Result.failure(ret);
+				lastResult = Result.failure(ret);
 			else {
 				finished = true;
 				return Result.success(ret);
 			}
 		} catch (Throwable e) {
-			res = Result.failure(e);	
+			lastResult = Result.failure(e);	
 		}
 		
-		RetryPolicy<T> policy = policySelector.selectPolicy(res);
+		RetryPolicy<T> policy = policySelector.selectPolicy(lastResult);
 		if (policy==null)
-			policy = new DefaultPolicySelector<T>().selectPolicy(res);
+			policy = new DefaultPolicySelector<T>().selectPolicy(lastResult);
 		
 		if (policy != lastRetryPolicy) {
 			if (lastRetryPolicy != null)
@@ -108,16 +120,22 @@ public class Retryer<T> implements RetryContext<T> {
 		
 		if (policy.getStopStrategy().mustStop(this)) {
 			finished = true;
-			return res;
+			return lastResult;
 		}
 		
-		long waitTime = policy.getWaitTimeStrategy().computeWaitTime(this);
-		lastDelay = waitTime >= 0L ? waitTime : 0L;
-		
-		return res;
+		final long waitTime = policy.getWaitTimeStrategy().computeWaitTime(this);
+		nextDelay = waitTime >= 0L ? waitTime : 0L;
+
+		//check if any timeout based stop strategies will accept next attempt (after 'nextDelay' time)
+		if (policy.getStopStrategy().mustStop(this)) {
+			finished = true;
+			return lastResult;
+		}
+
+		return lastResult;
 	}
 
-	private void nextAttempt() {
+	private void prepareForNextAttempt() {
 		long tm = clock.get();
 		lastAttemptTime = tm;
 		if (firstAttemptTime < 0)
@@ -136,13 +154,18 @@ public class Retryer<T> implements RetryContext<T> {
 	}
 
 	@Override
+	public long getNextDelay() {
+		return nextDelay;
+	}
+
+	@Override
 	public long getLastDelay() {
 		return lastDelay;
 	}
 
 	@Override
-	public Clock getClock() {
-		return clock;
+	public long getTime() {
+		return clock.get();
 	}
 
 }
