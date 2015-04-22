@@ -17,7 +17,7 @@ public class Result<T> {
 		this.exception = null;
 	}
 
-	public T execute() throws Throwable {
+	public T replay() throws Throwable {
 		if (exception != null)
 			throw exception;
 		else

@@ -28,7 +28,7 @@ public class Retryer<T> implements RetryContext<T> {
 	long lastDelay = 0L;
 	long nextDelay = 0L;
 	RetryPolicy<T> lastRetryPolicy;
-	Result<T> lastResult = null;
+	Result<T> lastResult = Result.failure(null);
 
 	public Retryer() {
 	}
@@ -55,7 +55,7 @@ public class Retryer<T> implements RetryContext<T> {
 		for(;;) {
 			Result<T> res = singleAttempt();
 			if (finished)
-				return res.execute();
+				return res.replay();
 			else {
 				lastRetryPolicy.getWaitStrategy().delay(this);
 			}
@@ -74,10 +74,11 @@ public class Retryer<T> implements RetryContext<T> {
 			executor.schedule( () -> {
 				Result<T> res = singleAttempt();
 				if (finished) {
-					if (res.exception != null)
-						promise.completeExceptionally(res.exception);
-					else
-						promise.complete(res.result);
+					try {
+						promise.complete(res.replay());
+					} catch (Throwable e) {
+						promise.completeExceptionally(e);
+					}
 				}
 				else
 					singleAttemptAsync(executor, promise);
@@ -90,16 +91,20 @@ public class Retryer<T> implements RetryContext<T> {
 	
 	private Result<T> singleAttempt() {
 		
-		lastDelay = nextDelay;
-		nextDelay = 0L;
+		final long now = clock.get();
 		
-		//if the next attempt was delayed too much (for different reasons), perhaps timeout based strategies might refuse to continue:
+		lastAttemptTime = now;
+		if (firstAttemptTime < 0)
+			firstAttemptTime = now;
+		
+		lastDelay = nextDelay;
+		nextDelay = 0L; //we don't know it yet...
+
+		//if the next attempt was delayed too much (eg. system overload) then timeout based strategies might refuse to continue:
 		if (lastRetryPolicy!=null && lastRetryPolicy.getStopStrategy().mustStop(this)) {
 			finished = true;
 			return lastResult;
 		}
-
-		prepareForNextAttempt();
 
 		try {
 			T ret = action.invoke();
@@ -111,7 +116,11 @@ public class Retryer<T> implements RetryContext<T> {
 			}
 		} catch (Throwable e) {
 			lastResult = Result.failure(e);	
+		} finally {
+			attemptsCount += 1;
 		}
+		
+		//at this point we know that last attempt was a failure...
 		
 		RetryPolicy<T> policy = policySelector.selectPolicy(lastResult);
 		if (policy==null)
@@ -139,14 +148,6 @@ public class Retryer<T> implements RetryContext<T> {
 		}
 
 		return lastResult;
-	}
-
-	private void prepareForNextAttempt() {
-		long tm = clock.get();
-		lastAttemptTime = tm;
-		if (firstAttemptTime < 0)
-			firstAttemptTime = tm;
-		attemptsCount += 1;
 	}
 
 	@Override
