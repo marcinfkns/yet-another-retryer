@@ -148,6 +148,7 @@ public class RetryerTest {
 		Retryer<Object> retryer = new Retryer<>();
 		StopStrategy<Object> stopStrategy = new TimeoutStopStrategy<>(1000);
 		WaitTimeStrategy<Object> waitTimeStrategy = new FixedWaitTimeStrategy<>(2000); //wait time > total timeout(!)
+		@SuppressWarnings("unchecked")
 		WaitStrategy<Object> waitStrategy = Mockito.mock(WaitStrategy.class); 
 		retryer.setPolicy(stopStrategy, waitTimeStrategy, waitStrategy);
 
@@ -168,6 +169,7 @@ public class RetryerTest {
 		Retryer<Object> retryer = new Retryer<>();
 		StopStrategy<Object> stopStrategy = new TimeoutStopStrategy<>(1000);
 		WaitTimeStrategy<Object> waitTimeStrategy = new FixedWaitTimeStrategy<>(1);
+		@SuppressWarnings("unchecked")
 		WaitStrategy<Object> waitStrategy = Mockito.mock(WaitStrategy.class); 
 		retryer.setPolicy(stopStrategy, waitTimeStrategy, waitStrategy);
 
