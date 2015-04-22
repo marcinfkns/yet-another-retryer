@@ -1,9 +1,14 @@
 package retryer;
 
 import static retryer.ResultPredicates.exceptionAnyOf;
-import static retryer.ResultPredicates.resultRejected;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -19,23 +24,25 @@ import retryer.stopstrategy.AttemptsCountStopStrategy;
 import retryer.stopstrategy.StopStrategy;
 import retryer.waitStrategy.BlockingWaitStrategy;
 import retryer.waitStrategy.WaitStrategy;
-import retryer.waitTimeStrategy.NoWaitTimeStrategy;
 import retryer.waitTimeStrategy.WaitTimeStrategy;
 
-public class RetryerTest {
+public class RetryerAsyncTest {
 
 	@Mock
 	RetryableAction<Object> service;
 
+	@Mock
+	ScheduledExecutorService executor;
+	
 	@BeforeMethod
 	public void setup() {
 		MockitoAnnotations.initMocks(this);
 	}
 	
 	@Test
-	public void testRetryOnException() throws Throwable {
+	public void testAsyncRetryOnException() throws Throwable {
 		StopStrategy<Object> stopStrategy = new AttemptsCountStopStrategy<>(3);
-		WaitTimeStrategy<Object> waitTimeStrategy = new NoWaitTimeStrategy<>();
+		WaitTimeStrategy<Object> waitTimeStrategy = ctx -> ctx.getAttemptsCount()*1000L;
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
@@ -43,22 +50,32 @@ public class RetryerTest {
 		));
 		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
+
+		final List<Long> delays = new ArrayList<>();
+		Mockito.when(executor.schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS))).then(inv -> {
+			Runnable action = (Runnable) inv.getArguments()[0];
+			long delay = (long) inv.getArguments()[1];
+			delays.add(delay);
+			action.run();
+			return null;
+		});
 		
 		Mockito.when(service.invoke())
 			.thenThrow(new RuntimeException("1"))
 			.thenThrow(new ArithmeticException("2"))
 			.thenReturn("OK");
 		
-		Object res = retryer.invoke(service);
+		Future<Object> res = retryer.invokeAsync(service, executor);
 		
-		Assert.assertEquals(res, "OK");
+		Assert.assertEquals(res.get(), "OK");
 		Mockito.verify(service, Mockito.times(3)).invoke();
+		Assert.assertEquals(delays, Arrays.asList(0L, 1000L, 2000L));
 	}
 
 	@Test(expectedExceptions={Exception.class}, expectedExceptionsMessageRegExp="2")
-	public void testThrowUnexpectedException() throws Throwable {
+	public void testAsyncThrowUnexpectedException() throws Throwable {
 		StopStrategy<Object> stopStrategy = new AttemptsCountStopStrategy<>(3);
-		WaitTimeStrategy<Object> waitTimeStrategy = new NoWaitTimeStrategy<>();
+		WaitTimeStrategy<Object> waitTimeStrategy = ctx -> ctx.getAttemptsCount()*1000L;
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
@@ -66,78 +83,61 @@ public class RetryerTest {
 		));
 		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
+
+		final List<Long> delays = new ArrayList<>();
+		Mockito.when(executor.schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS))).then(inv -> {
+			Runnable action = (Runnable) inv.getArguments()[0];
+			long delay = (long) inv.getArguments()[1];
+			delays.add(delay);
+			action.run();
+			return null;
+		});
 		
 		Mockito.when(service.invoke())
 			.thenThrow(new RuntimeException("1"))
 			.thenThrow(new Exception("2"))
 			.thenReturn("should never get in here!");
-		
+
+		Future<Object> res = retryer.invokeAsync(service, executor);
+
+		Mockito.verify(service, Mockito.times(2)).invoke();
+		Assert.assertEquals(delays, Arrays.asList(0L, 1000L));
 		try {
-			retryer.invoke(service);
-		} finally {
-			Mockito.verify(service, Mockito.times(2)).invoke();
+			res.get();
+		} catch (ExecutionException e) {
+			throw e.getCause();
 		}
 	}
 
 	@Test
-	public void testRejectResult() throws Throwable {
+	public void testAsyncImmediateSuccess() throws Throwable {
 		StopStrategy<Object> stopStrategy = new AttemptsCountStopStrategy<>(3);
-		WaitTimeStrategy<Object> waitTimeStrategy = new NoWaitTimeStrategy<>();
+		WaitTimeStrategy<Object> waitTimeStrategy = ctx -> ctx.getAttemptsCount()*1000L;
 		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
 		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
 		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-			new Rule<>(policy1, resultRejected())
+			new Rule<>(policy1, exceptionAnyOf(RuntimeException.class))
 		));
 		Retryer<Object> retryer = new Retryer<>();
 		retryer.setPolicySelector(policySelector);
-		retryer.setRejectingPredicate(ret -> !"OK".equals(ret));
+
+		final List<Long> delays = new ArrayList<>();
+		Mockito.when(executor.schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS))).then(inv -> {
+			Runnable action = (Runnable) inv.getArguments()[0];
+			long delay = (long) inv.getArguments()[1];
+			delays.add(delay);
+			action.run();
+			return null;
+		});
 		
 		Mockito.when(service.invoke())
-			.thenReturn("ERR1")
-			.thenReturn("ERR2")
 			.thenReturn("OK");
 		
-		Object res = retryer.invoke(service);
+		Future<Object> res = retryer.invokeAsync(service, executor);
 		
-		Assert.assertEquals(res, "OK");
-		Mockito.verify(service, Mockito.times(3)).invoke();
-	}
-
-	@Test
-	public void testSwitchingPolicies() throws Throwable {
-		StopStrategy<Object> stopStrategy = new AttemptsCountStopStrategy<>(4);
-		WaitTimeStrategy<Object> waitTimeStrategy = new NoWaitTimeStrategy<>();
-		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
-		RetryPolicy<Object> policy1 = Mockito.spy(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
-		RetryPolicy<Object> policy2 = Mockito.spy(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
-		RetryPolicy<Object> policy3 = Mockito.spy(new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy));
-		PolicySelector<Object> policySelector = new RuleSetPolicySelector<Object>(Arrays.asList(
-				new Rule<>(policy1, resultRejected()),
-				new Rule<>(policy2, exceptionAnyOf(ArithmeticException.class)),
-				new Rule<>(policy3, exceptionAnyOf(NullPointerException.class))
-		));
-		Retryer<Object> retryer = new Retryer<>();
-		retryer.setPolicySelector(policySelector);
-		retryer.setRejectingPredicate(ret -> !"OK".equals(ret));
-
-		Mockito.when(service.invoke())
-			.thenReturn("ERR1")
-			.thenThrow(new ArithmeticException("2"))
-			.thenThrow(new NullPointerException("3"))
-			.thenReturn("OK");
-		
-		Object res = retryer.invoke(service);
-		
-		Assert.assertEquals(res, "OK");
-		Mockito.verify(service, Mockito.times(4)).invoke();
-
-		Mockito.verify(policy1, Mockito.times(1)).switchOn();
-		Mockito.verify(policy1, Mockito.times(1)).switchOff();
-
-		Mockito.verify(policy2, Mockito.times(1)).switchOn();
-		Mockito.verify(policy2, Mockito.times(1)).switchOff();
-
-		Mockito.verify(policy3, Mockito.times(1)).switchOn();
+		Assert.assertEquals(res.get(), "OK");
+		Mockito.verify(service, Mockito.times(1)).invoke();
+		Assert.assertEquals(delays, Arrays.asList(0L));
 	}
 
 }
