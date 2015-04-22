@@ -17,8 +17,10 @@ import retryer.policyselector.RuleSetPolicySelector;
 import retryer.policyselector.RuleSetPolicySelector.Rule;
 import retryer.stopstrategy.AttemptsCountStopStrategy;
 import retryer.stopstrategy.StopStrategy;
+import retryer.stopstrategy.TimeoutStopStrategy;
 import retryer.waitStrategy.BlockingWaitStrategy;
 import retryer.waitStrategy.WaitStrategy;
+import retryer.waitTimeStrategy.FixedWaitTimeStrategy;
 import retryer.waitTimeStrategy.NoWaitTimeStrategy;
 import retryer.waitTimeStrategy.WaitTimeStrategy;
 
@@ -138,6 +140,53 @@ public class RetryerTest {
 		Mockito.verify(policy2, Mockito.times(1)).switchOff();
 
 		Mockito.verify(policy3, Mockito.times(1)).switchOn();
+	}
+	
+	//when waiting until next attempt would have exceeded the total timeout
+	@Test(expectedExceptions={RuntimeException.class}, expectedExceptionsMessageRegExp="1")
+	public void testTimeoutBeforeBackoff() throws Throwable {
+		Retryer<Object> retryer = new Retryer<>();
+		StopStrategy<Object> stopStrategy = new TimeoutStopStrategy<>(1000);
+		WaitTimeStrategy<Object> waitTimeStrategy = new FixedWaitTimeStrategy<>(2000); //wait time > total timeout(!)
+		WaitStrategy<Object> waitStrategy = Mockito.mock(WaitStrategy.class); 
+		retryer.setPolicy(stopStrategy, waitTimeStrategy, waitStrategy);
+
+		Mockito.when(service.invoke())
+			.thenThrow(new RuntimeException("1"));
+
+		try {
+			retryer.invoke(service);
+		} finally {
+			Mockito.verify(service, Mockito.times(1)).invoke(); //shouldn't try next attempt, because it would exceed total timeout
+			Mockito.verify(waitStrategy, Mockito.never()).delay(Mockito.any()); //no backoff expected
+		}
+	}
+
+	//when a retry attempt is delayed more than specified by WaitTime strategy and would occur after total timeout:
+	@Test(expectedExceptions={RuntimeException.class}, expectedExceptionsMessageRegExp="1")
+	public void testTimeoutOnDelayedAttempt() throws Throwable {
+		Retryer<Object> retryer = new Retryer<>();
+		StopStrategy<Object> stopStrategy = new TimeoutStopStrategy<>(1000);
+		WaitTimeStrategy<Object> waitTimeStrategy = new FixedWaitTimeStrategy<>(1);
+		WaitStrategy<Object> waitStrategy = Mockito.mock(WaitStrategy.class); 
+		retryer.setPolicy(stopStrategy, waitTimeStrategy, waitStrategy);
+
+		Mockito.when(service.invoke())
+			.thenThrow(new RuntimeException("1"));
+
+		retryer.setClock(()->0L); //initial clock value: 0
+		
+		Mockito.doAnswer(invk -> {
+			retryer.setClock(()->1001L); //1ms after total timeout!
+			return null;
+		}).when(waitStrategy).delay(Mockito.any());
+		
+		try {
+			retryer.invoke(service);
+		} finally {
+			Mockito.verify(service, Mockito.times(1)).invoke(); //shouldn't try next attempt, because it would exceed total timeout
+			Mockito.verify(waitStrategy, Mockito.times(1)).delay(Mockito.any());
+		}
 	}
 
 }
