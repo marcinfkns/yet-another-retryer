@@ -2,6 +2,7 @@ package retryer;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -69,17 +70,22 @@ public class Retryer<T> implements RetryContext<T> {
 	}
 
 	private void singleAttemptAsync(final ScheduledExecutorService executor, final CompletableFuture<T> promise) {
-		executor.schedule( () -> {
-			Result<T> res = singleAttempt();
-			if (finished) {
-				if (res.exception != null)
-					promise.completeExceptionally(res.exception);
+		try {
+			executor.schedule( () -> {
+				Result<T> res = singleAttempt();
+				if (finished) {
+					if (res.exception != null)
+						promise.completeExceptionally(res.exception);
+					else
+						promise.complete(res.result);
+				}
 				else
-					promise.complete(res.result);
-			}
-			else
-				singleAttemptAsync(executor, promise);
-		}, nextDelay, TimeUnit.MILLISECONDS);
+					singleAttemptAsync(executor, promise);
+			}, nextDelay, TimeUnit.MILLISECONDS);
+		} catch (RejectedExecutionException ex) {
+			//executor rejected our task
+			promise.completeExceptionally(ex);
+		}
 	}
 	
 	private Result<T> singleAttempt() {

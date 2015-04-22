@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -138,6 +139,26 @@ public class RetryerAsyncTest {
 		Assert.assertEquals(res.get(), "OK");
 		Mockito.verify(service, Mockito.times(1)).invoke();
 		Assert.assertEquals(delays, Arrays.asList(0L));
+	}
+
+	// when executor rejects our call/retry attempt:
+	@Test(expectedExceptions={RejectedExecutionException.class}, expectedExceptionsMessageRegExp="task rejected")
+	public void testAsyncRejectedByExecutor() throws Throwable {
+		Retryer<Object> retryer = new Retryer<>(); //no policy configured -> will use the default one
+
+		Mockito.when(executor.schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS))).then(inv -> {
+			throw new RejectedExecutionException("task rejected");
+		});
+		
+		Future<Object> res = retryer.invokeAsync(service, executor);
+		
+		Mockito.verify(service, Mockito.times(0)).invoke();
+
+		try {
+			res.get();
+		} catch (ExecutionException e) {
+			throw e.getCause();
+		}
 	}
 
 }
