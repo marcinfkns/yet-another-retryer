@@ -1,0 +1,19 @@
+apply plugin: 'java'
+apply plugin: "jacoco" //gradle test jacocoTestReport -> report will be generated in build/reports/jacoco/test/html/
+
+repositories {
+   mavenCentral()
+}
+
+dependencies {
+    //compile fileTree(dir: 'lib', include: '*.jar')
+
+    testCompile   "org.mockito:mockito-all:1.9.5"
+    testCompile   "org.testng:testng:6.8.8"
+}
+
+test {
+    useTestNG() {
+        //suites("src/test/resources/testng.xml") //not really necessary
+    }
+}
