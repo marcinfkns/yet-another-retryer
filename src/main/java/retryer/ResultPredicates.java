@@ -3,7 +3,7 @@ package retryer;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-public class ResultPredicates {
+public interface ResultPredicates {
 
 	public static <T> Predicate<Result<T>> resultRejected() {
 		return f -> !f.success && f.exception==null;

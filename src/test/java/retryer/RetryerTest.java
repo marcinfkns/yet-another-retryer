@@ -15,6 +15,7 @@ import org.testng.annotations.Test;
 import retryer.policyselector.PolicySelector;
 import retryer.policyselector.RuleSetPolicySelector;
 import retryer.policyselector.RuleSetPolicySelector.Rule;
+import retryer.policyselector.SinglePolicySelector;
 import retryer.stopstrategy.AttemptsCountStopStrategy;
 import retryer.stopstrategy.StopStrategy;
 import retryer.stopstrategy.TimeoutStopStrategy;
@@ -55,6 +56,7 @@ public class RetryerTest {
 		
 		Assert.assertEquals(res, "OK");
 		Mockito.verify(service, Mockito.times(3)).invoke();
+		Assert.assertEquals(retryer.getAttemptsCount(), 3);
 	}
 
 	@Test(expectedExceptions={Exception.class}, expectedExceptionsMessageRegExp="2")
@@ -77,6 +79,32 @@ public class RetryerTest {
 		try {
 			retryer.invoke(service);
 		} finally {
+			Mockito.verify(service, Mockito.times(2)).invoke();
+			Assert.assertEquals(retryer.getAttemptsCount(), 2);
+		}
+	}
+
+	@Test
+	public void testNegativeWaitTimes() throws Throwable {
+		StopStrategy<Object> stopStrategy = new AttemptsCountStopStrategy<>(3);
+		WaitTimeStrategy<Object> waitTimeStrategy = ctx -> -1L; //deliberately returns negative back off time
+		WaitStrategy<Object> waitStrategy = new BlockingWaitStrategy<>();
+		RetryPolicy<Object> policy1 = new RetryPolicy<>(stopStrategy, waitTimeStrategy, waitStrategy);
+		PolicySelector<Object> policySelector = new SinglePolicySelector<>(policy1);
+		Retryer<Object> retryer = new Retryer<>();
+		retryer.setPolicySelector(policySelector);
+		retryer.setClock(() -> 0L);
+		
+		Mockito.when(service.invoke())
+			.thenThrow(new RuntimeException("ERR"))
+			.thenReturn("OK");
+		
+		try {
+			retryer.invoke(service);
+		} finally {
+			System.out.printf("testNegativeWaitTimes: %s %s\n", retryer.getLastDelay(), retryer.getAttemptsCount());
+			Assert.assertEquals(retryer.getLastDelay(), 0); //if back off time < 0 it should assume 0
+			Assert.assertEquals(retryer.getAttemptsCount(), 2);
 			Mockito.verify(service, Mockito.times(2)).invoke();
 		}
 	}
@@ -103,6 +131,7 @@ public class RetryerTest {
 		
 		Assert.assertEquals(res, "OK");
 		Mockito.verify(service, Mockito.times(3)).invoke();
+		Assert.assertEquals(retryer.getAttemptsCount(), 3);
 	}
 
 	@Test
@@ -132,6 +161,7 @@ public class RetryerTest {
 		
 		Assert.assertEquals(res, "OK");
 		Mockito.verify(service, Mockito.times(4)).invoke();
+		Assert.assertEquals(retryer.getAttemptsCount(), 4);
 
 		Mockito.verify(policy1, Mockito.times(1)).switchOn();
 		Mockito.verify(policy1, Mockito.times(1)).switchOff();
@@ -158,7 +188,9 @@ public class RetryerTest {
 		try {
 			retryer.invoke(service);
 		} finally {
+			Assert.assertEquals(retryer.getLastDelay(), 0L);
 			Mockito.verify(service, Mockito.times(1)).invoke(); //shouldn't try next attempt, because it would exceed total timeout
+			Assert.assertEquals(retryer.getAttemptsCount(), 1);
 			Mockito.verify(waitStrategy, Mockito.never()).delay(Mockito.any()); //no backoff expected
 		}
 	}
@@ -186,7 +218,9 @@ public class RetryerTest {
 		try {
 			retryer.invoke(service);
 		} finally {
+			Assert.assertEquals(retryer.getLastDelay(), 1L);
 			Mockito.verify(service, Mockito.times(1)).invoke(); //shouldn't try next attempt, because it would exceed total timeout
+			Assert.assertEquals(retryer.getAttemptsCount(), 1);
 			Mockito.verify(waitStrategy, Mockito.times(1)).delay(Mockito.any());
 		}
 	}
